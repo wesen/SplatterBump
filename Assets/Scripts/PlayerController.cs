@@ -33,6 +33,14 @@ public class PlayerController : MonoBehaviour {
 
     private State _state;
     private State _previousState;
+    
+    // TODO: allow jump before hitting ground
+    // TODO: dashing
+    // TODO: crouching
+    // TODO: ledge grab
+    // TODO: climbing
+    // TODO: swimming
+    // TODO: rope swinging
 
     // Use this for initialization
     void Start() {
