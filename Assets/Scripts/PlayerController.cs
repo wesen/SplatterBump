@@ -74,10 +74,8 @@ public class PlayerController : MonoBehaviour {
         }
 
         if (Input.GetKey(KeyCode.D)) {
-            Debug.Log("Move right, sloped " + _controller.IsSloped() + " grounded " + _controller.IsGrounded());
             on_Move(1.0f);
         } else if (Input.GetKey(KeyCode.A)) {
-            Debug.Log("Move left, sloped " + _controller.IsSloped() + " grounded " + _controller.IsGrounded());
             on_Move(-1.0f);
         } else {
             on_Idle();
@@ -90,8 +88,6 @@ public class PlayerController : MonoBehaviour {
         _setAnimation();
 
         Velocity.y += Gravity * Time.deltaTime;
-        Debug.DrawRay(transform.position, Velocity, Color.white);
-        Debug.Log("Velocity: " + Velocity.x / Time.deltaTime + " y " + Velocity.y / Time.deltaTime);
         _controller.Move(Velocity);
 
         if (_previousState != _state && Verbose) {
@@ -99,24 +95,12 @@ public class PlayerController : MonoBehaviour {
         }
 
         _previousState = _state;
-        Debug.Log("-----");
     }
 
     private Vector3 _computeVelocity(float direction) {
         Vector3 ret = new Vector3(0, 0, 0);
         ret.x = direction * MoveSpeed * Time.deltaTime;
-//        Debug.Log("Before applying slope " + ret.x + " " + ret.y);
-        if (direction < 0.0f && _controller.IsSlopedLeft()) {
-            ret = Quaternion.AngleAxis(-_controller.SlopeAngles.Left, Vector3.forward) * ret;
-        } else if (direction > 0.0f && _controller.IsSlopedRight()) {
-            ret = Quaternion.AngleAxis(-_controller.SlopeAngles.Right, Vector3.forward) * ret;
-        }
-
-//        Debug.Log("Applying slope " + ret.x + " " + ret.y);
-
         ret.y += Velocity.y;
-//        Debug.Log("Final vector " + ret.x + " " + ret.y);
-        Debug.DrawRay(transform.position, ret, Color.cyan);
         return ret;
     }
 

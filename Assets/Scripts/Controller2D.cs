@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Runtime.InteropServices.ComTypes;
+using UnityEditor.VersionControl;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -51,9 +52,10 @@ public class Controller2D : MonoBehaviour {
     }
 
     public void Move(Vector3 velocity) {
+        Debug.Log("Move input velocity " + velocity.x / Time.deltaTime);
         _computeCollisions(ref velocity);
 
-        Debug.Log("After Collision: " + velocity.x / Time.deltaTime + " y " + velocity.y / Time.deltaTime);
+        Debug.DrawRay(transform.position, velocity * 10.0f, Color.white);
         transform.Translate(velocity);
     }
 
@@ -68,34 +70,19 @@ public class Controller2D : MonoBehaviour {
     public bool IsHitRight() {
         return (Collision & Directions.Right) == Directions.Right;
     }
-    
+
     public bool IsSlopedLeft() {
         return (Collision & Directions.Left) == Directions.Left && SlopeAngles.Left < MaxSlopeAngle;
     }
-    
+
     public bool IsSlopedRight() {
         return (Collision & Directions.Right) == Directions.Right && SlopeAngles.Right < MaxSlopeAngle;
     }
 
-    public bool IsSloped() {
-        if ((Collision & Directions.Left) == Directions.Left && SlopeAngles.Left < MaxSlopeAngle) {
-            return true;
-        } else if ((Collision & Directions.Right) == Directions.Right && SlopeAngles.Right < MaxSlopeAngle) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
     private void _computeCollisions(ref Vector3 velocity) {
         // skin the bounding box extends
-        Bounds _bounds = _collider.bounds;
-        _bounds.Expand(-SkinWidth * 2);
 
         Collision = Directions.None;
-
-        float horizontalInc = _bounds.extents.x * 2 / ((float) NumberOfVerticalRays - 1);
-        float verticalInc = _bounds.extents.y * 2 / ((float) NumberOfHorizontalRays - 1);
 
         Distances.Down = Mathf.Infinity;
         Distances.Up = Mathf.Infinity;
@@ -107,49 +94,54 @@ public class Controller2D : MonoBehaviour {
         SlopeAngles.Up = 0.0f;
         SlopeAngles.Down = 0.0f;
 
-        // vertical rays
+        _computeHorizontalCollisions(ref velocity);
+        _computeVerticalCollisions(ref velocity);
+    }
+
+    private void _computeVerticalCollisions(ref Vector3 velocity) {
+        Bounds _bounds = _collider.bounds;
+        _bounds.Expand(-SkinWidth * 2);
+        float horizontalInc = _bounds.extents.x * 2 / ((float) NumberOfVerticalRays - 1);
+
+        float direction = velocity.y > 0.0f ? 1.0f : -1.0f;
+        float absVelocity = Math.Abs(velocity.y);
+
         for (int i = 0; i < NumberOfVerticalRays; i++) {
             RaycastHit hit;
 
             float x = _bounds.min.x + i * horizontalInc;
-            if (velocity.y <= 0.00001f) {
-                var bottom = new Vector2(x, _bounds.min.y);
-                Ray rayBottom = new Ray(bottom, Vector2.down);
-                if (Physics.Raycast(rayBottom, out hit, Mathf.Abs(velocity.y) + SkinWidth, CollisionMask)) {
-                    float distance = hit.distance - SkinWidth;
+
+            var rayStart = new Vector2(x, direction > 0.0f ? _bounds.max.y : _bounds.min.y);
+            
+            Ray ray = new Ray(rayStart, Vector2.up * direction);
+            if (Physics.Raycast(ray, out hit, absVelocity + SkinWidth, CollisionMask)) {
+                float distance = hit.distance - SkinWidth;
+
+                if (direction <= 0.0f) {
                     Distances.Down = Mathf.Min(Distances.Down, distance);
-                    if (velocity.y < -distance) {
+                    if (absVelocity >= distance) {
                         Collision |= Directions.Down;
                     }
-
-                    velocity.y = Mathf.Max(-distance, velocity.y);
-                    Debug.DrawRay(bottom, Vector2.down * hit.distance, Color.red);
-
-                    if (i == 0) {
-                        SlopeAngles.Down = Vector3.SignedAngle(hit.normal, Vector3.up, Vector3.forward);
-                    }
                 } else {
-                    Debug.DrawRay(bottom, Vector2.down, Color.green);
-                }
-            } else {
-                var top = new Vector2(x, _bounds.max.y);
-                Ray rayTop = new Ray(top, Vector2.up);
-
-                if (Physics.Raycast(rayTop, out hit, Mathf.Abs(velocity.y) + SkinWidth, CollisionMask)) {
-                    float distance = hit.distance - SkinWidth;
                     Distances.Up = Mathf.Min(Distances.Up, distance);
-                    if (velocity.y > distance) {
+                    if (absVelocity >= distance) {
                         Collision |= Directions.Up;
                     }
-
-                    velocity.y = Mathf.Min(distance, velocity.y);
-                    Debug.DrawRay(top, Vector2.up * hit.distance, Color.red);
-                    SlopeAngles.Up = Vector3.SignedAngle(hit.normal, Vector3.up, Vector3.forward);
-                } else {
-                    Debug.DrawRay(top, Vector2.up, Color.green);
                 }
+
+                velocity.y = Mathf.Min(distance, absVelocity) * direction;
+                Debug.DrawRay(rayStart, Vector2.up * hit.distance * direction, Color.red);
+            } else {
+                Debug.DrawRay(rayStart, Vector2.up * direction, Color.green);
             }
         }
+    }
+
+    private void _computeHorizontalCollisions(ref Vector3 velocity) {
+        Bounds _bounds = _collider.bounds;
+        _bounds.Expand(-SkinWidth * 2);
+
+        float verticalInc = _bounds.extents.y * 2 / ((float) NumberOfHorizontalRays - 1);
 
         // horizontal rays
         // should I do both directions?
@@ -166,16 +158,32 @@ public class Controller2D : MonoBehaviour {
                 if (Physics.Raycast(rayLeft, out hit, Math.Abs(velocity.x) + SkinWidth, CollisionMask)) {
                     float distance = hit.distance - SkinWidth;
                     Distances.Left = Mathf.Min(Distances.Left, distance);
-                    if (velocity.x < -distance) {
-                        Collision |= Directions.Left;
-                    }
-
-                    velocity.x = Mathf.Max(-distance, velocity.x);
-                    Debug.DrawRay(left, Vector2.left * hit.distance, Color.red);
 
                     if (i == 0) {
                         SlopeAngles.Left = Vector3.SignedAngle(hit.normal, Vector3.up, Vector3.forward);
+
+                        if (IsSlopedLeft()) {
+                            Vector3 newVelocity = new Vector3(velocity.x, 0.0f, 0.0f);
+
+                            newVelocity = Quaternion.AngleAxis(-SlopeAngles.Left, Vector3.forward) * newVelocity;
+                            newVelocity.y = Mathf.Max(velocity.y, newVelocity.y);
+
+                            velocity = newVelocity;
+
+                            // Mark as grounded
+                            Collision |= Directions.Down;
+                        }
                     }
+
+                    if (!IsSlopedLeft()) {
+                        Collision |= Directions.Left;
+
+                        // XXX this is where we want to climb the slope
+
+                        velocity.x = Mathf.Max(-distance, velocity.x);
+                    }
+
+                    Debug.DrawRay(left, Vector2.left * hit.distance, Color.red);
                 } else {
                     Debug.DrawRay(left, Vector2.left, Color.green);
                 }
@@ -185,10 +193,9 @@ public class Controller2D : MonoBehaviour {
                 if (Physics.Raycast(rayRight, out hit, Math.Abs(velocity.x) + SkinWidth, CollisionMask)) {
                     float distance = hit.distance - SkinWidth;
                     Distances.Right = Mathf.Min(Distances.Right, distance);
-                    if (velocity.x > distance) {
-                        Collision |= Directions.Right;
-                    }
+                    Collision |= Directions.Right;
 
+                    // XXX this is where we want to climb the slope
                     velocity.x = Mathf.Min(distance, velocity.x);
                     Debug.DrawRay(right, Vector2.right * hit.distance, Color.red);
 
@@ -201,7 +208,30 @@ public class Controller2D : MonoBehaviour {
             }
         }
 
-//        Debug.Log("SlopeAngles left: " + SlopeAngles.Left + " right: " + SlopeAngles.Right + " down: " +
-//                  SlopeAngles.Down + " up: " + SlopeAngles.Up);
+        velocity = _climbSlopes(velocity);
+    }
+
+    private Vector3 _climbSlopes(Vector3 velocity) {
+        Vector3 newVelocity = new Vector3(velocity.x, 0.0f, 0.0f);
+
+        if (newVelocity.x < 0.0f && IsSlopedLeft()) {
+            newVelocity = Quaternion.AngleAxis(-SlopeAngles.Left, Vector3.forward) * newVelocity;
+            newVelocity.y = Mathf.Max(velocity.y, newVelocity.y);
+
+            // Mark as grounded
+            Collision |= Directions.Down;
+        } else if (velocity.x > 0.0f && IsSlopedRight()) {
+            newVelocity = Quaternion.AngleAxis(-SlopeAngles.Right, Vector3.forward) * newVelocity;
+            Debug.Log("Sloped right " + SlopeAngles.Right + " old " + velocity.x / Time.deltaTime + " new " +
+                      newVelocity.x / Time.deltaTime);
+            newVelocity.y = Mathf.Max(velocity.y, newVelocity.y);
+
+            // Mark as grounded
+            Collision |= Directions.Down;
+        } else {
+            newVelocity = velocity;
+        }
+
+        return newVelocity;
     }
 }
