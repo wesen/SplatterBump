@@ -136,8 +136,9 @@ public class Controller2D : MonoBehaviour {
             var rayStart = new Vector2(x, direction > 0.0f ? _bounds.max.y : _bounds.min.y);
 
             Ray ray = new Ray(rayStart, Vector2.up * direction);
-            if (Physics.Raycast(ray, out hit, absVelocity + SkinWidth, CollisionMask)) {
-                float distance = hit.distance - SkinWidth;
+            var rayLength = (absVelocity + SkinWidth);
+            if (Physics.Raycast(ray, out hit, rayLength, CollisionMask)) {
+                float distance = hit.distance - SkinWidth * 2;
 
                 if (direction <= 0.0f) {
                     Distances.Down = Mathf.Min(Distances.Down, distance);
@@ -151,10 +152,10 @@ public class Controller2D : MonoBehaviour {
                     }
                 }
 
-                velocity.y = Mathf.Min(distance, absVelocity) * direction;
+                velocity.y = Mathf.Min(distance, Math.Abs(velocity.y)) * direction;
                 Debug.DrawRay(rayStart, Vector2.up * hit.distance * direction, Color.red);
             } else {
-                Debug.DrawRay(rayStart, Vector2.up * direction, Color.green);
+                Debug.DrawRay(rayStart, Vector2.up * direction * rayLength, Color.green);
             }
         }
     }
@@ -186,8 +187,8 @@ public class Controller2D : MonoBehaviour {
 
             if (Physics.Raycast(ray, out hit, absVelocity + SkinWidth, CollisionMask)) {
                 float distance = hit.distance - SkinWidth;
-                float angle = Vector3.SignedAngle(hit.normal, Vector3.up, Vector3.forward);
 
+                float angle = Vector3.SignedAngle(hit.normal, Vector3.up, Vector3.forward);
                 if (i == 0 || (i > 0 && Math.Abs(angle - lastSlopeAngle) > ANGLE_COMPARISON_TOLERANCE)) {
                     if (angle < MaxSlopeAngle) {
                         isSloped = true;
@@ -216,7 +217,7 @@ public class Controller2D : MonoBehaviour {
                         Collision |= Directions.Right;
                     }
 
-                    velocity.x = direction * Mathf.Min(distance, absVelocity);
+                    velocity.x = direction * Mathf.Min(distance, Math.Abs(velocity.x));
                 }
 
                 if (direction < 0.0f) {
@@ -227,34 +228,8 @@ public class Controller2D : MonoBehaviour {
 
                 Debug.DrawRay(rayStart, direction * Vector2.right * hit.distance, Color.red);
             } else {
-                Debug.DrawRay(rayStart, direction * Vector2.right * hit.distance, Color.green);
+                Debug.DrawRay(rayStart, direction * Vector2.right * absVelocity, Color.green);
             }
         }
-
-        velocity = _climbSlopes(velocity);
-    }
-
-    private Vector3 _climbSlopes(Vector3 velocity) {
-        Vector3 newVelocity = new Vector3(velocity.x, 0.0f, 0.0f);
-
-        if (newVelocity.x < 0.0f && IsSlopedLeft()) {
-            newVelocity = Quaternion.AngleAxis(-SlopeAngles.Left, Vector3.forward) * newVelocity;
-            newVelocity.y = Mathf.Max(velocity.y, newVelocity.y);
-
-            // Mark as grounded
-            Collision |= Directions.Down;
-        } else if (velocity.x > 0.0f && IsSlopedRight()) {
-            newVelocity = Quaternion.AngleAxis(-SlopeAngles.Right, Vector3.forward) * newVelocity;
-            Debug.Log("Sloped right " + SlopeAngles.Right + " old " + velocity.x / Time.deltaTime + " new " +
-                      newVelocity.x / Time.deltaTime);
-            newVelocity.y = Mathf.Max(velocity.y, newVelocity.y);
-
-            // Mark as grounded
-            Collision |= Directions.Down;
-        } else {
-            newVelocity = velocity;
-        }
-
-        return newVelocity;
     }
 }
