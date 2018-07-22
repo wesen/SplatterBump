@@ -38,7 +38,7 @@ public class PlayerController : MonoBehaviour {
     private State _state;
     private State _previousState;
 
-    // TODO: slopes
+    // TODO: downwards slopes
     // TODO: slide on slopes
     // TODO: ice
     // TODO: allow jump before hitting ground

@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Runtime.InteropServices.ComTypes;
+using System.Text;
 using UnityEditor.VersionControl;
 using UnityEngine;
 using UnityEngine.UI;
@@ -14,6 +15,7 @@ public class Controller2D : MonoBehaviour {
     public int NumberOfHorizontalRays = 5;
     public LayerMask CollisionMask;
     public float MaxSlopeAngle = 45;
+    public float MaxDescendingSlopeAngle = 45;
 
     public struct CollisionDistances {
         public float Left;
@@ -72,9 +74,6 @@ public class Controller2D : MonoBehaviour {
         }
 
         _computeCollisions(ref velocity);
-
-        Debug.DrawRay(transform.position, velocity * 10.0f, Color.white);
-        transform.Translate(velocity);
     }
 
     public bool IsGrounded() {
@@ -101,8 +100,6 @@ public class Controller2D : MonoBehaviour {
     private Vector3 _lastVelocity = new Vector3();
 
     private void _computeCollisions(ref Vector3 velocity) {
-        // skin the bounding box extends
-
         Collision = Directions.None;
 
         Distances.Down = Mathf.Infinity;
@@ -115,9 +112,62 @@ public class Controller2D : MonoBehaviour {
         SlopeAngles.Up = 0.0f;
         SlopeAngles.Down = 0.0f;
 
-
+        _computeDescendingSlope(ref velocity);
         _computeHorizontalCollisions(ref velocity);
+//        Debug.DrawRay(transform.position, velocity.x * Vector3.right, Color.white);
+//        transform.Translate(velocity.x * Vector3.right);
         _computeVerticalCollisions(ref velocity);
+//        Debug.DrawRay(transform.position, velocity.y * Vector3.up, Color.white);
+//        transform.Translate(velocity.y * Vector3.up);
+        Debug.DrawRay(transform.position, velocity, Color.white);
+        transform.Translate(velocity);
+    }
+
+    private void _computeDescendingSlope(ref Vector3 velocity) {
+        if (Math.Abs(velocity.x) < 0.001f) {
+            // not moving
+            return;
+        }
+
+        if (velocity.y > 0.001f) {
+            // jumping
+            return;
+        }
+
+        float direction = Math.Sign(velocity.x);
+
+        // if moving left, we want to cast a ray from our bottom right corner
+        Bounds _bounds = _collider.bounds;
+        _bounds.Expand(-SkinWidth * 2);
+        Vector2 rayStart = new Vector3(0.0f, _bounds.min.y);
+        rayStart.x = direction > 0 ? _bounds.min.x + SkinWidth : _bounds.max.x - SkinWidth;
+
+        RaycastHit hit;
+        Ray ray = new Ray(rayStart, Vector2.down);
+        if (Physics.Raycast(ray, out hit, Mathf.Infinity, CollisionMask)) {
+            float angle = Vector3.SignedAngle(hit.normal, Vector3.up, Vector3.back);
+            if (Math.Abs(angle) < MaxDescendingSlopeAngle) {
+                SlopeAngles.Down = angle;
+                // check that we are descending in the direction of the normal
+                if (Math.Abs(Math.Sign(hit.normal.x) - direction) < 0.0001f) {
+                    Vector3 newVelocity = new Vector3(velocity.x, 0.0f, 0.0f);
+                    newVelocity = Quaternion.AngleAxis(-angle, Vector3.back) * newVelocity;
+
+                    Debug.DrawRay(transform.position, velocity, Color.yellow);
+                    Debug.DrawRay(transform.position, Vector3.down * Math.Abs(newVelocity.y), Color.blue);
+                    Debug.DrawRay(transform.position + new Vector3(0.1f, 0, 0),
+                        Vector3.down * (hit.distance - SkinWidth), Color.green);
+
+                    if (Math.Abs(newVelocity.y) > (hit.distance - SkinWidth)) {
+                        newVelocity.y += velocity.y;
+                        velocity = newVelocity;
+                        Collision |= Directions.Down;
+                    }
+
+                    Debug.DrawRay(transform.position, newVelocity, Color.red);
+                }
+            }
+        }
     }
 
     private void _computeVerticalCollisions(ref Vector3 velocity) {
@@ -138,7 +188,7 @@ public class Controller2D : MonoBehaviour {
             Ray ray = new Ray(rayStart, Vector2.up * direction);
             var rayLength = (absVelocity + SkinWidth);
             if (Physics.Raycast(ray, out hit, rayLength, CollisionMask)) {
-                float distance = hit.distance - SkinWidth * 2;
+                float distance = hit.distance - SkinWidth;
 
                 if (direction <= 0.0f) {
                     Distances.Down = Mathf.Min(Distances.Down, distance);
@@ -169,12 +219,10 @@ public class Controller2D : MonoBehaviour {
         float verticalInc = _bounds.extents.y * 2 / ((float) NumberOfHorizontalRays - 1);
         float absVelocity = Math.Abs(velocity.x);
         float direction = Math.Sign(velocity.x);
-
+        
         bool isSloped = false;
         float lastSlopeAngle = 0.0f;
 
-        // horizontal rays
-        // should I do both directions?
         Vector3 bottomRight = _bounds.min;
         bottomRight.x = _bounds.max.x;
         for (int i = 0; i < NumberOfHorizontalRays; i++) {
@@ -190,7 +238,7 @@ public class Controller2D : MonoBehaviour {
 
                 float angle = Vector3.SignedAngle(hit.normal, Vector3.up, Vector3.forward);
                 if (i == 0 || (i > 0 && Math.Abs(angle - lastSlopeAngle) > ANGLE_COMPARISON_TOLERANCE)) {
-                    if (angle < MaxSlopeAngle) {
+                    if (Math.Abs(angle) < MaxSlopeAngle) {
                         isSloped = true;
                         lastSlopeAngle = angle;
 
