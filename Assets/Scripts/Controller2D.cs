@@ -47,11 +47,30 @@ public class Controller2D : MonoBehaviour {
         Down = 1 << 3
     }
 
+    private Recorder _recorder;
+
+    [Range(0, 100)] public int ReplayFrame = 0;
+
     void Start() {
+        _recorder = GetComponent<Recorder>();
         _collider = GetComponent<BoxCollider2D>();
     }
 
     public void Move(Vector3 velocity) {
+        if (_recorder.IsRecording()) {
+            if ((_lastPosition - transform.position).magnitude > 0.001 ||
+                (_lastVelocity - velocity).magnitude > 0.001) {
+                _lastPosition = transform.position;
+                _lastVelocity = velocity;
+
+                _recorder.RecordFrame(transform.position, velocity);
+            }
+        } else {
+            Recorder.Frame frame = _recorder.GetFrame(ReplayFrame);
+            transform.position = frame.Position;
+            velocity = frame.Velocity;
+        }
+
         _computeCollisions(ref velocity);
 
         Debug.DrawRay(transform.position, velocity * 10.0f, Color.white);
@@ -78,6 +97,9 @@ public class Controller2D : MonoBehaviour {
         return (Collision & Directions.Right) == Directions.Right && SlopeAngles.Right < MaxSlopeAngle;
     }
 
+    private Vector3 _lastPosition = new Vector3();
+    private Vector3 _lastVelocity = new Vector3();
+
     private void _computeCollisions(ref Vector3 velocity) {
         // skin the bounding box extends
 
@@ -92,6 +114,7 @@ public class Controller2D : MonoBehaviour {
         SlopeAngles.Right = 0.0f;
         SlopeAngles.Up = 0.0f;
         SlopeAngles.Down = 0.0f;
+
 
         _computeHorizontalCollisions(ref velocity);
         _computeVerticalCollisions(ref velocity);

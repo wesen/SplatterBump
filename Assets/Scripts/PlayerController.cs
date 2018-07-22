@@ -88,6 +88,7 @@ public class PlayerController : MonoBehaviour {
         _setAnimation();
 
         Velocity.y += Gravity * Time.deltaTime;
+        
         _controller.Move(Velocity);
 
         if (_previousState != _state && Verbose) {
