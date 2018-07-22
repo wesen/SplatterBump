@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Runtime.InteropServices.ComTypes;
 using UnityEngine;
 using UnityEngine.UI;
@@ -11,7 +12,25 @@ public class Controller2D : MonoBehaviour {
     public int NumberOfVerticalRays = 5;
     public int NumberOfHorizontalRays = 5;
     public LayerMask CollisionMask;
+    public float MaxSlopeAngle = 45;
 
+    public struct CollisionDistances {
+        public float Left;
+        public float Right;
+        public float Up;
+        public float Down;
+    }
+
+    public struct Angles {
+        public float Left;
+        public float Right;
+    }
+
+    // The angle of the slope if there is a collision on the right or on the left
+    [HideInInspector] public Angles SlopeAngles;
+    // Distance to the collision in each direction
+    [HideInInspector] public CollisionDistances Distances;
+    // Where we collided with the environment
     [HideInInspector] public Directions Collision;
 
     [Flags]
@@ -29,6 +48,7 @@ public class Controller2D : MonoBehaviour {
 
     public void Move(Vector3 velocity) {
         _computeCollisions(ref velocity);
+        
         transform.Translate(velocity);
     }
 
@@ -36,7 +56,22 @@ public class Controller2D : MonoBehaviour {
         return (Collision & Directions.Down) == Directions.Down;
     }
 
-    void Update() {
+    public bool IsHitLeft() {
+        return (Collision & Directions.Left) == Directions.Left;
+    }
+    
+    public bool IsHitRight() {
+        return (Collision & Directions.Right) == Directions.Right;
+    }
+
+    public bool IsSloped() {
+        if ((Collision & Directions.Left) == Directions.Left && SlopeAngles.Left < MaxSlopeAngle) {
+            return true;
+        } else if ((Collision & Directions.Right) == Directions.Right && SlopeAngles.Right < MaxSlopeAngle) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     private void _computeCollisions(ref Vector3 velocity) {
@@ -49,6 +84,12 @@ public class Controller2D : MonoBehaviour {
         float horizontalInc = _bounds.extents.x * 2 / ((float) NumberOfVerticalRays - 1);
         float verticalInc = _bounds.extents.y * 2 / ((float) NumberOfHorizontalRays - 1);
 
+        Distances.Down = Mathf.Infinity;
+        Distances.Up = Mathf.Infinity;
+        Distances.Left = Mathf.Infinity;
+        Distances.Right = Mathf.Infinity;
+
+        // vertical rays
         for (int i = 0; i < NumberOfVerticalRays; i++) {
             RaycastHit hit;
 
@@ -58,6 +99,7 @@ public class Controller2D : MonoBehaviour {
                 Ray rayBottom = new Ray(bottom, Vector2.down);
                 if (Physics.Raycast(rayBottom, out hit, Mathf.Abs(velocity.y) + SkinWidth, CollisionMask)) {
                     float distance = hit.distance - SkinWidth;
+                    Distances.Down = Mathf.Min(Distances.Down, distance);
                     if (velocity.y < -distance) {
                         Collision |= Directions.Down;
                     }
@@ -73,6 +115,7 @@ public class Controller2D : MonoBehaviour {
 
                 if (Physics.Raycast(rayTop, out hit, Mathf.Abs(velocity.y) + SkinWidth, CollisionMask)) {
                     float distance = hit.distance - SkinWidth;
+                    Distances.Up = Mathf.Min(Distances.Up, distance);
                     if (velocity.y > distance) {
                         Collision |= Directions.Up;
                     }
@@ -85,6 +128,8 @@ public class Controller2D : MonoBehaviour {
             }
         }
 
+        // horizontal rays
+        // should I do both directions?
         Vector3 bottomRight = _bounds.min;
         bottomRight.x = _bounds.max.x;
         for (int i = 0; i < NumberOfHorizontalRays; i++) {
@@ -97,28 +142,38 @@ public class Controller2D : MonoBehaviour {
                 Ray rayLeft = new Ray(left, Vector2.left);
                 if (Physics.Raycast(rayLeft, out hit, Math.Abs(velocity.x) + SkinWidth, CollisionMask)) {
                     float distance = hit.distance - SkinWidth;
+                    Distances.Left = Mathf.Min(Distances.Left, distance);
                     if (velocity.x < -distance) {
                         Collision |= Directions.Left;
                     }
 
                     velocity.x = Mathf.Max(-distance, velocity.x);
                     Debug.DrawRay(left, Vector2.left * hit.distance, Color.red);
+
+                    if (i == 0) {
+                        SlopeAngles.Left = Vector3.SignedAngle(hit.normal, Vector3.up, Vector3.forward);
+                    }
                 } else {
                     Debug.DrawRay(left, Vector2.left, Color.green);
                 }
             } else {
                 var right = new Vector2(_bounds.max.x, y);
-                Ray rayRight = new Ray(right , Vector2.right);
+                Ray rayRight = new Ray(right, Vector2.right);
                 if (Physics.Raycast(rayRight, out hit, Math.Abs(velocity.x) + SkinWidth, CollisionMask)) {
                     float distance = hit.distance - SkinWidth;
+                    Distances.Right = Mathf.Min(Distances.Right, distance);
                     if (velocity.x > distance) {
                         Collision |= Directions.Right;
                     }
 
                     velocity.x = Mathf.Min(distance, velocity.x);
-                    Debug.DrawRay(right , Vector2.right * hit.distance, Color.red);
+                    Debug.DrawRay(right, Vector2.right * hit.distance, Color.red);
+                    
+                    if (i == 0) {
+                        SlopeAngles.Right = Vector3.SignedAngle(hit.normal, Vector3.up, Vector3.forward);
+                    }
                 } else {
-                    Debug.DrawRay(right , Vector2.right, Color.green);
+                    Debug.DrawRay(right, Vector2.right, Color.green);
                 }
             }
         }

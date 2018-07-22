@@ -14,7 +14,11 @@ public class PlayerController : MonoBehaviour {
     public float LandingDuration = 1.0f;
     public float FallDurationForLanding = 1.0f;
 
+    public float JumpZone = 0.2f;
+
     private SpriteRenderer _sr;
+
+    public bool Verbose = false;
 
     private enum State {
         IDLE,
@@ -33,7 +37,10 @@ public class PlayerController : MonoBehaviour {
 
     private State _state;
     private State _previousState;
-    
+
+    // TODO: slopes
+    // TODO: slide on slopes
+    // TODO: ice
     // TODO: allow jump before hitting ground
     // TODO: dashing
     // TODO: crouching
@@ -41,6 +48,11 @@ public class PlayerController : MonoBehaviour {
     // TODO: climbing
     // TODO: swimming
     // TODO: rope swinging
+    // TODO: against walls
+    // TODO: tweak physics?
+    // TODO: particles on jump / walk
+    // TODO: running / running stamina
+    // TODO: dying animation
 
     // Use this for initialization
     void Start() {
@@ -78,15 +90,33 @@ public class PlayerController : MonoBehaviour {
         Velocity.y += Gravity * Time.deltaTime;
         _controller.Move(Velocity);
 
-        if (_previousState != _state) {
+        if (_previousState != _state && Verbose) {
             Debug.Log(_previousState + " -> " + _state);
         }
 
         _previousState = _state;
     }
 
+    private Vector3 _computeVelocity(float direction) {
+        Vector3 ret = new Vector3(0, 0, 0);
+        ret.x = direction * MoveSpeed * Time.deltaTime;
+        if (_controller.IsSloped()) {
+            if (direction < 0.0f) {
+                ret = Quaternion.AngleAxis(_controller.SlopeAngles.Left, Vector3.forward) * ret;
+            } else if (direction > 0.0f) {
+                ret = Quaternion.AngleAxis(_controller.SlopeAngles.Left, Vector3.forward) * ret;
+            }
+        }
+
+        ret.y += Velocity.y;
+        Debug.DrawRay(transform.position, ret, Color.cyan);
+        return ret;
+    }
+
     private void _setAnimation() {
         switch (_state) {
+            default:
+                break;
             case State.IDLE:
                 _sr.color = Color.black;
                 break;
@@ -124,6 +154,8 @@ public class PlayerController : MonoBehaviour {
 
     private void on_Idle() {
         switch (_state) {
+            default:
+                break;
             case State.IDLE:
                 break;
             case State.MOVING:
@@ -146,14 +178,16 @@ public class PlayerController : MonoBehaviour {
 
     private void on_Move(float direction) {
         switch (_state) {
+            default:
+                break;
             case State.IDLE:
                 _state = State.MOVING;
-                Velocity.x = direction * MoveSpeed * Time.deltaTime;
+                Velocity = _computeVelocity(direction);
                 break;
             case State.MOVING:
             case State.RUNNING:
             case State.JUMP:
-                Velocity.x = direction * MoveSpeed * Time.deltaTime;
+                Velocity = _computeVelocity(direction);
                 break;
 
             case State.LANDING:
@@ -166,6 +200,8 @@ public class PlayerController : MonoBehaviour {
 
     private void on_Grounded() {
         switch (_state) {
+            default:
+                break;
             case State.IDLE:
             case State.MOVING:
             case State.RUNNING:
@@ -186,7 +222,10 @@ public class PlayerController : MonoBehaviour {
                 break;
 
             case State.FALLING:
-                Debug.Log("FallingDuration: " + (Time.time - _fallingStartTime));
+                if (Verbose) {
+                    Debug.Log("FallingDuration: " + (Time.time - _fallingStartTime));
+                }
+
                 if (Time.time - _fallingStartTime > FallDurationForLanding) {
                     _state = State.LANDING;
                     _landingStartTime = Time.time;
@@ -203,10 +242,11 @@ public class PlayerController : MonoBehaviour {
 
     private void on_Jump() {
         switch (_state) {
+            default:
+                break;
             case State.IDLE:
             case State.MOVING:
             case State.RUNNING:
-            case State.LANDING:
             case State.AGAINST_WALL:
             case State.CROUCHING:
                 _state = State.JUMP;
@@ -214,9 +254,12 @@ public class PlayerController : MonoBehaviour {
                 Velocity.y = JumpSpeed;
                 break;
 
+            case State.LANDING:
+                break;
+
             case State.JUMP:
             case State.FALLING:
-                if (_isFirstJump) {
+                if (_isFirstJump || _controller.Distances.Down < JumpZone) {
                     Velocity.y = JumpSpeed;
                     _isFirstJump = false;
                     _state = State.JUMP;
@@ -228,6 +271,8 @@ public class PlayerController : MonoBehaviour {
 
     private void on_Floating() {
         switch (_state) {
+            default:
+                break;
             case State.IDLE:
             case State.MOVING:
             case State.RUNNING:
