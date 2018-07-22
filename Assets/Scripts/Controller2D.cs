@@ -160,7 +160,7 @@ public class Controller2D : MonoBehaviour {
 
             var rayStart = direction < 0.0f ? new Vector2(_bounds.min.x, y) : new Vector2(_bounds.max.x, y);
             Ray ray = new Ray(rayStart, Vector2.right * direction);
-            
+
             if (Physics.Raycast(ray, out hit, absVelocity + SkinWidth, CollisionMask)) {
                 float distance = hit.distance - SkinWidth;
                 float angle = Vector3.SignedAngle(hit.normal, Vector3.up, Vector3.forward);
@@ -171,16 +171,16 @@ public class Controller2D : MonoBehaviour {
                         lastSlopeAngle = angle;
 
                         Vector3 newVelocity = new Vector3(velocity.x, 0.0f, 0.0f);
-
                         newVelocity = Quaternion.AngleAxis(angle, Vector3.back) * newVelocity;
-                        
                         // in case we are jumping
-                        newVelocity.y = Mathf.Max(velocity.y, newVelocity.y);
+                        if (velocity.y > newVelocity.y) {
+                            newVelocity.y = velocity.y;
+                        } else {
+                            // Mark as grounded
+                            Collision |= Directions.Down;
+                        }
 
                         velocity = newVelocity;
-
-                        // Mark as grounded
-                        Collision |= Directions.Down;
                     } else {
                         isSloped = false;
                     }
