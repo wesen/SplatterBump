@@ -196,7 +196,7 @@ public class Controller2D : MonoBehaviour {
         for (int i = 0; i < NumberOfVerticalRays; i++) {
             RaycastHit hit;
 
-            float x = _bounds.min.x + i * horizontalInc;
+            float x = _bounds.min.x + i * horizontalInc + velocity.x;
 
             var rayStart = new Vector2(x, direction > 0.0f ? _bounds.max.y : _bounds.min.y);
 

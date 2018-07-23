@@ -63,6 +63,7 @@ public class PlayerController : MonoBehaviour {
     // Use this for initialization
     void Start() {
         _sr = GetComponent<SpriteRenderer>();
+//        _controller = GetComponent<Controller2DPlus>();
         _controller = GetComponent<Controller2D>();
         _recorder = GetComponent<Recorder>();
         _state = State.IDLE;
