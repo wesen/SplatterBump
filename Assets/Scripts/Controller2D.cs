@@ -6,6 +6,7 @@ using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 using UnityEditor.VersionControl;
 using UnityEngine;
+using UnityEngine.Experimental.PlayerLoop;
 using UnityEngine.UI;
 
 public class Controller2D : MonoBehaviour {
@@ -17,11 +18,25 @@ public class Controller2D : MonoBehaviour {
     public float MaxSlopeAngle = 45;
     public float MaxDescendingSlopeAngle = 45;
 
+    struct BoundingPoints {
+        public Vector3 TopRight;
+        public Vector3 TopLeft;
+        public Vector3 BottomRight;
+        public Vector3 BottomLeft;
+
+        public void Compute() {
+        }
+    }
+
     public struct CollisionDistances {
         public float Left;
         public float Right;
         public float Up;
         public float Down;
+
+        public void Reset() {
+            Down = Up = Right = Left = Mathf.Infinity;
+        }
     }
 
     public struct Angles {
@@ -29,7 +44,26 @@ public class Controller2D : MonoBehaviour {
         public float Up;
         public float Left;
         public float Right;
+
+        public void Reset() {
+            Up = Right = Left = Down = 0.0f;
+        }
     }
+
+    public struct CollisionInfo {
+        public bool IsClimbingSlope;
+        public bool IsDescendingSlope;
+        public float SlopeAngle;
+        public Vector3 OriginalVelocity;
+
+        public void Reset(Vector3 _originalVelocity) {
+            IsClimbingSlope = IsDescendingSlope = false;
+            SlopeAngle = 0.0f;
+            OriginalVelocity = _originalVelocity;
+        }
+    }
+
+    private BoundingPoints _boundingPoints;
 
     // The angle of the slope if there is a collision on the right or on the left
     [HideInInspector] public Angles SlopeAngles;
@@ -40,6 +74,8 @@ public class Controller2D : MonoBehaviour {
     // Where we collided with the environment
     [HideInInspector] public Directions Collision;
 
+    [HideInInspector] public CollisionInfo Info;
+
     [Flags]
     public enum Directions {
         None = 0,
@@ -49,30 +85,11 @@ public class Controller2D : MonoBehaviour {
         Down = 1 << 3
     }
 
-    private Recorder _recorder;
-
-    [Range(0, 100)] public int ReplayFrame = 0;
-
     void Start() {
-        _recorder = GetComponent<Recorder>();
         _collider = GetComponent<BoxCollider2D>();
     }
 
     public void Move(Vector3 velocity) {
-        if (_recorder.IsRecording()) {
-            if ((_lastPosition - transform.position).magnitude > 0.001 ||
-                (_lastVelocity - velocity).magnitude > 0.001) {
-                _lastPosition = transform.position;
-                _lastVelocity = velocity;
-
-                _recorder.RecordFrame(transform.position, velocity);
-            }
-        } else {
-            Recorder.Frame frame = _recorder.GetFrame(ReplayFrame);
-            transform.position = frame.Position;
-            velocity = frame.Velocity;
-        }
-
         _computeCollisions(ref velocity);
     }
 
@@ -96,29 +113,28 @@ public class Controller2D : MonoBehaviour {
         return (Collision & Directions.Right) == Directions.Right && SlopeAngles.Right < MaxSlopeAngle;
     }
 
-    private Vector3 _lastPosition = new Vector3();
-    private Vector3 _lastVelocity = new Vector3();
+    public float GetDistanceToGround() {
+        return Distances.Down;
+    }
 
     private void _computeCollisions(ref Vector3 velocity) {
         Collision = Directions.None;
 
-        Distances.Down = Mathf.Infinity;
-        Distances.Up = Mathf.Infinity;
-        Distances.Left = Mathf.Infinity;
-        Distances.Right = Mathf.Infinity;
+        Distances.Reset();
+        SlopeAngles.Reset();
+        Info.Reset(velocity);
 
-        SlopeAngles.Left = 0.0f;
-        SlopeAngles.Right = 0.0f;
-        SlopeAngles.Up = 0.0f;
-        SlopeAngles.Down = 0.0f;
+        Bounds _bounds = _collider.bounds;
+        _bounds.Expand(-SkinWidth * 2);
+        _boundingPoints.TopRight = new Vector3(_bounds.max.x, _bounds.max.y, 0.0f);
+        _boundingPoints.TopLeft = new Vector3(_bounds.min.x, _bounds.max.y, 0.0f);
+        _boundingPoints.BottomRight = new Vector3(_bounds.max.x, _bounds.min.y, 0.0f);
+        _boundingPoints.BottomLeft = new Vector3(_bounds.min.x, _bounds.min.y, 0.0f);
 
         _computeDescendingSlope(ref velocity);
         _computeHorizontalCollisions(ref velocity);
-//        Debug.DrawRay(transform.position, velocity.x * Vector3.right, Color.white);
-//        transform.Translate(velocity.x * Vector3.right);
         _computeVerticalCollisions(ref velocity);
-//        Debug.DrawRay(transform.position, velocity.y * Vector3.up, Color.white);
-//        transform.Translate(velocity.y * Vector3.up);
+
         Debug.DrawRay(transform.position, velocity, Color.white);
         transform.Translate(velocity);
     }
@@ -137,10 +153,7 @@ public class Controller2D : MonoBehaviour {
         float direction = Math.Sign(velocity.x);
 
         // if moving left, we want to cast a ray from our bottom right corner
-        Bounds _bounds = _collider.bounds;
-        _bounds.Expand(-SkinWidth * 2);
-        Vector2 rayStart = new Vector3(0.0f, _bounds.min.y);
-        rayStart.x = direction > 0 ? _bounds.min.x + SkinWidth : _bounds.max.x - SkinWidth;
+        Vector3 rayStart = direction > 0 ? _boundingPoints.BottomLeft : _boundingPoints.BottomRight;
 
         RaycastHit hit;
         Ray ray = new Ray(rayStart, Vector2.down);
@@ -148,6 +161,7 @@ public class Controller2D : MonoBehaviour {
             float angle = Vector3.SignedAngle(hit.normal, Vector3.up, Vector3.back);
             if (Math.Abs(angle) < MaxDescendingSlopeAngle) {
                 SlopeAngles.Down = angle;
+
                 // check that we are descending in the direction of the normal
                 if (Math.Abs(Math.Sign(hit.normal.x) - direction) < 0.0001f) {
                     Vector3 newVelocity = new Vector3(velocity.x, 0.0f, 0.0f);
@@ -159,6 +173,7 @@ public class Controller2D : MonoBehaviour {
                         Vector3.down * (hit.distance - SkinWidth), Color.green);
 
                     if (Math.Abs(newVelocity.y) > (hit.distance - SkinWidth)) {
+                        Info.IsDescendingSlope = true;
                         newVelocity.y += velocity.y;
                         velocity = newVelocity;
                         Collision |= Directions.Down;
@@ -208,6 +223,22 @@ public class Controller2D : MonoBehaviour {
                 Debug.DrawRay(rayStart, Vector2.up * direction * rayLength, Color.green);
             }
         }
+
+        // Now make sure the updated ray doesn't hit a wall
+//        if (Info.IsClimbingSlope) {
+        {
+            float xDirection = Math.Sign(velocity.x);
+            Vector3 rayStart = xDirection > 0.0f ? _boundingPoints.BottomRight : _boundingPoints.BottomLeft;
+            rayStart.y += velocity.y;
+            RaycastHit hit;
+            float rayLength = Math.Abs(velocity.x) + SkinWidth;
+
+            if (Physics.Raycast(new Ray(rayStart, Vector3.right * xDirection), out hit, rayLength, CollisionMask)) {
+                velocity.x = (hit.distance - SkinWidth) * xDirection;
+            }
+        }
+
+//        }
     }
 
     private static float ANGLE_COMPARISON_TOLERANCE = 0.01f;
@@ -219,8 +250,7 @@ public class Controller2D : MonoBehaviour {
         float verticalInc = _bounds.extents.y * 2 / ((float) NumberOfHorizontalRays - 1);
         float absVelocity = Math.Abs(velocity.x);
         float direction = Math.Sign(velocity.x);
-        
-        bool isSloped = false;
+
         float lastSlopeAngle = 0.0f;
 
         Vector3 bottomRight = _bounds.min;
@@ -237,9 +267,15 @@ public class Controller2D : MonoBehaviour {
                 float distance = hit.distance - SkinWidth;
 
                 float angle = Vector3.SignedAngle(hit.normal, Vector3.up, Vector3.forward);
+
                 if (i == 0 || (i > 0 && Math.Abs(angle - lastSlopeAngle) > ANGLE_COMPARISON_TOLERANCE)) {
                     if (Math.Abs(angle) < MaxSlopeAngle) {
-                        isSloped = true;
+                        if (Info.IsDescendingSlope) {
+                            Info.IsDescendingSlope = false;
+                            velocity = Info.OriginalVelocity;
+                        }
+
+                        Info.IsClimbingSlope = true;
                         lastSlopeAngle = angle;
 
                         Vector3 newVelocity = new Vector3(velocity.x, 0.0f, 0.0f);
@@ -254,11 +290,11 @@ public class Controller2D : MonoBehaviour {
 
                         velocity = newVelocity;
                     } else {
-                        isSloped = false;
+                        Info.IsClimbingSlope = false;
                     }
                 }
 
-                if (!isSloped) {
+                if (!Info.IsClimbingSlope) {
                     if (direction < 0.0f) {
                         Collision |= Directions.Left;
                     } else {

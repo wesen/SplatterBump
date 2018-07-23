@@ -21,7 +21,7 @@ GameObject:
   - component: {fileID: 4809197978620284}
   - component: {fileID: 33976918694650770}
   - component: {fileID: 23709333746410786}
-  - component: {fileID: 65062920291703574}
+  - component: {fileID: 65041090604415316}
   m_Layer: 8
   m_Name: Wall
   m_TagString: Untagged
@@ -41,7 +41,7 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 0
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 31.769001}
 --- !u!23 &23709333746410786
 MeshRenderer:
   m_ObjectHideFlags: 1
@@ -84,7 +84,7 @@ MeshFilter:
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1894488603583564}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!65 &65062920291703574
+--- !u!65 &65041090604415316
 BoxCollider:
   m_ObjectHideFlags: 1
   m_PrefabParentObject: {fileID: 0}

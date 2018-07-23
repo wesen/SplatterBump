@@ -113,6 +113,36 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
+--- !u!1 &236917666 stripped
+GameObject:
+  m_PrefabParentObject: {fileID: 1894488603583564, guid: 63d9ef30baa6b4d6c91c79b6276adc50,
+    type: 2}
+  m_PrefabInternal: {fileID: 1632628779}
+--- !u!61 &236917667
+BoxCollider2D:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 236917666}
+  m_Enabled: 1
+  m_Density: 1
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_UsedByEffector: 0
+  m_UsedByComposite: 0
+  m_Offset: {x: 0, y: 0}
+  m_SpriteTilingProperty:
+    border: {x: 0, y: 0, z: 0, w: 0}
+    pivot: {x: 0, y: 0}
+    oldSize: {x: 0, y: 0}
+    newSize: {x: 0, y: 0}
+    adaptiveTilingThreshold: 0
+    drawMode: 0
+    adaptiveTiling: 0
+  m_AutoTiling: 0
+  serializedVersion: 2
+  m_Size: {x: 1.0000001, y: 1.0000005}
+  m_EdgeRadius: 0
 --- !u!1 &519420028
 GameObject:
   m_ObjectHideFlags: 0
@@ -199,6 +229,7 @@ GameObject:
   - component: {fileID: 816796657}
   - component: {fileID: 816796661}
   - component: {fileID: 816796662}
+  - component: {fileID: 816796663}
   m_Layer: 9
   m_Name: Player
   m_TagString: Untagged
@@ -212,7 +243,7 @@ MonoBehaviour:
   m_PrefabParentObject: {fileID: 0}
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 816796656}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 28ed525f59d644f59bbf17d4e4b0dd09, type: 3}
   m_Name: 
@@ -224,8 +255,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 256
   MaxSlopeAngle: 45
+  MaxDescendingSlopeAngle: 45
   Collision: 0
-  ReplayFrame: 0
 --- !u!61 &816796658
 BoxCollider2D:
   m_ObjectHideFlags: 0
@@ -328,6 +359,7 @@ MonoBehaviour:
   FallDurationForLanding: 1
   JumpZone: 0.2
   Verbose: 0
+  ReplayFrame: 0
 --- !u!114 &816796662
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -340,6 +372,22 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   MaxLength: 100
+--- !u!114 &816796663
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 816796656}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4df94bd493c9d4494ab8b5440f0673f4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  collisionMask:
+    serializedVersion: 2
+    m_Bits: 0
+  horizontalRayCount: 4
+  verticalRayCount: 4
 --- !u!1001 &823144184
 Prefab:
   m_ObjectHideFlags: 0
@@ -629,6 +677,7 @@ Prefab:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 31.769001
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 65062920291703574, guid: 63d9ef30baa6b4d6c91c79b6276adc50, type: 2}
   m_ParentPrefab: {fileID: 100100000, guid: 63d9ef30baa6b4d6c91c79b6276adc50, type: 2}
   m_IsPrefabParent: 0

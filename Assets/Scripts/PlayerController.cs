@@ -5,6 +5,7 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour {
     private Controller2D _controller;
+//    private Controller2DPlus _controller;
     public float MoveSpeed = 1.0f;
     public Vector3 Velocity;
 
@@ -54,10 +55,16 @@ public class PlayerController : MonoBehaviour {
     // TODO: running / running stamina
     // TODO: dying animation
 
+    private Recorder _recorder;
+    [Range(0, 100)] public int ReplayFrame = 0;
+    private Vector3 _lastPosition = new Vector3();
+    private Vector3 _lastVelocity = new Vector3();
+
     // Use this for initialization
     void Start() {
         _sr = GetComponent<SpriteRenderer>();
         _controller = GetComponent<Controller2D>();
+        _recorder = GetComponent<Recorder>();
         _state = State.IDLE;
         _previousState = State.IDLE;
     }
@@ -89,6 +96,19 @@ public class PlayerController : MonoBehaviour {
 
         Velocity.y += Gravity * Time.deltaTime;
         
+        if (_recorder.IsRecording()) {
+            if ((_lastPosition - transform.position).magnitude > 0.001 ||
+                (_lastVelocity - Velocity).magnitude > 0.001) {
+                _lastPosition = transform.position;
+                _lastVelocity = Velocity;
+
+                _recorder.RecordFrame(transform.position, Velocity);
+            }
+        } else {
+            Recorder.Frame frame = _recorder.GetFrame(ReplayFrame);
+            transform.position = frame.Position;
+            Velocity = frame.Velocity;
+        }
         _controller.Move(Velocity);
 
         if (_previousState != _state && Verbose) {
@@ -251,7 +271,7 @@ public class PlayerController : MonoBehaviour {
 
             case State.JUMP:
             case State.FALLING:
-                if (_isFirstJump || _controller.Distances.Down < JumpZone) {
+                if (_isFirstJump || _controller.GetDistanceToGround() < JumpZone) {
                     Velocity.y = JumpSpeed;
                     _isFirstJump = false;
                     _state = State.JUMP;
