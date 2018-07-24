@@ -1,9 +1,9 @@
-﻿using UnityEngine;
+﻿using System;
+using UnityEngine;
 
 public class PlayerController : MonoBehaviour {
     private Controller2D _controller;
 
-//    private Controller2DPlus _controller;
     public float MoveSpeed = 1.0f;
     public Vector3 Velocity;
 
@@ -18,6 +18,8 @@ public class PlayerController : MonoBehaviour {
     private SpriteRenderer _sr;
 
     public bool Verbose = false;
+
+    public int PlayerIndex = 0;
 
     public enum State {
         IDLE,
@@ -36,6 +38,8 @@ public class PlayerController : MonoBehaviour {
 
     private State _state;
     private State _previousState;
+
+    // TODO: collision with other player
 
     // TODO: downwards slopes
     // TODO: slide on slopes
@@ -69,10 +73,14 @@ public class PlayerController : MonoBehaviour {
     private float _xScale;
     private bool _triggerAnimationNextFrame = true;
 
+    private ContactFilter2D _cf2d;
+    private Collider2D _c2d;
+
+    private Collider2D[] _playerCollisions = new Collider2D[4];
+
     // Use this for initialization
     void Start() {
         _sr = GetComponentInChildren<SpriteRenderer>();
-//        _controller = GetComponent<Controller2DPlus>();
         _controller = GetComponent<Controller2D>();
         _recorder = GetComponent<Recorder>();
         _animator = GetComponent<Animator>();
@@ -83,6 +91,11 @@ public class PlayerController : MonoBehaviour {
 
         _state = State.IDLE;
         _previousState = State.IDLE;
+
+        _c2d = GetComponent<BoxCollider2D>();
+
+        _cf2d = new ContactFilter2D();
+        _cf2d.SetLayerMask(LayerMask.GetMask("Player"));
     }
 
     // Update is called once per frame
@@ -96,17 +109,8 @@ public class PlayerController : MonoBehaviour {
             }
         }
 
-        if (Input.GetKey(KeyCode.D)) {
-            on_Move(1.0f);
-        } else if (Input.GetKey(KeyCode.A)) {
-            on_Move(-1.0f);
-        } else {
-            on_Idle();
-        }
-
-        if (Input.GetKeyDown(KeyCode.Space)) {
-            on_Jump();
-        }
+        _handleInput();
+        _checkForCollisions();
 
         Velocity.y += Gravity * Time.deltaTime;
 
@@ -114,6 +118,49 @@ public class PlayerController : MonoBehaviour {
 
         _controller.Move(Velocity);
 
+        _updateAnimation();
+
+        _previousState = _state;
+    }
+
+    private void _handleInput() {
+        KeyCode keyCodeRight = KeyCode.D;
+        KeyCode keyCodeLeft = KeyCode.A;
+        KeyCode keyCodeJump = KeyCode.Space;
+        if (PlayerIndex == 1) {
+            keyCodeRight = KeyCode.RightArrow;
+            keyCodeLeft = KeyCode.LeftArrow;
+            keyCodeJump = KeyCode.LeftShift;
+        }
+
+        if (Input.GetKey(keyCodeRight)) {
+            on_Move(1.0f);
+        } else if (Input.GetKey(keyCodeLeft)) {
+            on_Move(-1.0f);
+        } else {
+            on_Idle();
+        }
+
+        if (Input.GetKeyDown(keyCodeJump)) {
+            on_Jump();
+        }
+    }
+
+    private void _checkForCollisions() {
+        int overlaps = _c2d.OverlapCollider(_cf2d, _playerCollisions);
+        for (int i = 0; i < overlaps; i++) {
+            float diff = transform.position.y - _playerCollisions[i].gameObject.transform.position.y;
+            if (Math.Abs(diff) < 0.1) {
+                // nothing happens, walk past each other
+            } else if (diff > 0) {
+                Debug.Log("We kill " + _playerCollisions[i].gameObject.name);
+            } else {
+                Debug.Log("We die to " + _playerCollisions[i].gameObject.name);
+            }
+        }
+    }
+
+    private void _updateAnimation() {
         if (Velocity.x < 0) {
             transform.localScale = new Vector2(-_xScale, transform.localScale.y);
         } else if (Velocity.x > 0) {
@@ -127,8 +174,6 @@ public class PlayerController : MonoBehaviour {
                 Debug.Log(_previousState + " -> " + _state);
             }
         }
-
-        _previousState = _state;
     }
 
     private void _recordOrReplayStep() {
@@ -336,7 +381,7 @@ public class PlayerController : MonoBehaviour {
                 _state = State.FALLING;
                 _fallingStartTime = Time.time;
                 break;
-            
+
             case State.FALLING:
                 break;
         }
