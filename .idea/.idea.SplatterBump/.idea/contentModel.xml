@@ -9,6 +9,7 @@
           <e p="Controller2DPlus.cs" t="Include" />
           <e p="PlayerController.cs" t="Include" />
           <e p="Recorder.cs" t="Include" />
+          <e p="SpriteSheetSwitcher.cs" t="Include" />
         </e>
       </e>
       <e p="Library" t="ExcludeRecursive" />
