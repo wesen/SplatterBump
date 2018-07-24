@@ -1,10 +1,8 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEditor.Experimental.UIElements.GraphView;
-using UnityEngine;
+﻿using UnityEngine;
 
 public class PlayerController : MonoBehaviour {
     private Controller2D _controller;
+
 //    private Controller2DPlus _controller;
     public float MoveSpeed = 1.0f;
     public Vector3 Velocity;
@@ -21,7 +19,7 @@ public class PlayerController : MonoBehaviour {
 
     public bool Verbose = false;
 
-    private enum State {
+    public enum State {
         IDLE,
         MOVING,
         RUNNING,
@@ -55,17 +53,34 @@ public class PlayerController : MonoBehaviour {
     // TODO: running / running stamina
     // TODO: dying animation
 
+    // [X] transition from jump to fall
+    // TODO: slide forward velocity from jump
+    // TODO: Particle smoke when jumping
+    // TODO: Sounds on actions
+    // TODO: Sticking to walls
+
+    private Animator _animator;
+
     private Recorder _recorder;
     [Range(0, 100)] public int ReplayFrame = 0;
     private Vector3 _lastPosition = new Vector3();
     private Vector3 _lastVelocity = new Vector3();
 
+    private float _xScale;
+    private bool _triggerAnimationNextFrame = true;
+
     // Use this for initialization
     void Start() {
-        _sr = GetComponent<SpriteRenderer>();
+        _sr = GetComponentInChildren<SpriteRenderer>();
 //        _controller = GetComponent<Controller2DPlus>();
         _controller = GetComponent<Controller2D>();
         _recorder = GetComponent<Recorder>();
+        _animator = GetComponent<Animator>();
+
+        _xScale = transform.localScale.x;
+
+        _animator.Play("Idle");
+
         _state = State.IDLE;
         _previousState = State.IDLE;
     }
@@ -93,30 +108,45 @@ public class PlayerController : MonoBehaviour {
             on_Jump();
         }
 
-        _setAnimation();
-
         Velocity.y += Gravity * Time.deltaTime;
-        
+
+        _recordOrReplayStep();
+
+        _controller.Move(Velocity);
+
+        if (Velocity.x < 0) {
+            transform.localScale = new Vector2(-_xScale, transform.localScale.y);
+        } else if (Velocity.x > 0) {
+            transform.localScale = new Vector2(_xScale, transform.localScale.y);
+        }
+
+        if (_previousState != _state || !_recorder.IsRecording() || _triggerAnimationNextFrame) {
+            _triggerAnimationNextFrame = false;
+            _setAnimation();
+            if (Verbose) {
+                Debug.Log(_previousState + " -> " + _state);
+            }
+        }
+
+        _previousState = _state;
+    }
+
+    private void _recordOrReplayStep() {
         if (_recorder.IsRecording()) {
             if ((_lastPosition - transform.position).magnitude > 0.001 ||
                 (_lastVelocity - Velocity).magnitude > 0.001) {
                 _lastPosition = transform.position;
                 _lastVelocity = Velocity;
 
-                _recorder.RecordFrame(transform.position, Velocity);
+                _recorder.RecordFrame(transform.position, Velocity, _state, _previousState);
             }
         } else {
             Recorder.Frame frame = _recorder.GetFrame(ReplayFrame);
             transform.position = frame.Position;
             Velocity = frame.Velocity;
+            _previousState = frame.PreviousPlayerState;
+            _state = frame.PlayerState;
         }
-        _controller.Move(Velocity);
-
-        if (_previousState != _state && Verbose) {
-            Debug.Log(_previousState + " -> " + _state);
-        }
-
-        _previousState = _state;
     }
 
     private Vector3 _computeVelocity(float direction) {
@@ -131,20 +161,23 @@ public class PlayerController : MonoBehaviour {
             default:
                 break;
             case State.IDLE:
-                _sr.color = Color.black;
+                _animator.Play("Idle");
+                _sr.color = Color.white;
                 break;
             case State.MOVING:
-                _sr.color = Color.blue;
+                _animator.Play("Walk");
+                _sr.color = Color.white;
                 break;
             case State.RUNNING:
                 _sr.color = Color.red;
                 break;
 
             case State.JUMP:
+                _animator.Play("Jump");
+                _sr.color = Color.white;
+
                 if (_isFirstJump) {
-                    _sr.color = Color.white;
                 } else {
-                    _sr.color = Color.grey;
                 }
 
                 break;
@@ -160,7 +193,14 @@ public class PlayerController : MonoBehaviour {
                 break;
 
             case State.FALLING:
-                _sr.color = Color.yellow;
+                if (_previousState == State.JUMP) {
+                    _animator.Play("Apex");
+                    _triggerAnimationNextFrame = true;
+                } else {
+                    _animator.Play("Fall");
+                }
+
+                _sr.color = Color.white;
                 break;
         }
     }
@@ -293,9 +333,11 @@ public class PlayerController : MonoBehaviour {
             case State.AGAINST_WALL:
             case State.CROUCHING:
             case State.JUMP:
-            case State.FALLING:
                 _state = State.FALLING;
                 _fallingStartTime = Time.time;
+                break;
+            
+            case State.FALLING:
                 break;
         }
     }
