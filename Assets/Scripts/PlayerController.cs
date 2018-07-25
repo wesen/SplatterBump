@@ -15,8 +15,6 @@ public class PlayerController : MonoBehaviour {
 
     public float JumpZone = 0.2f;
 
-    private SpriteRenderer _sr;
-
     public bool Verbose = false;
 
     public int PlayerIndex = 0;
@@ -30,6 +28,7 @@ public class PlayerController : MonoBehaviour {
         AGAINST_WALL,
         CROUCHING,
         FALLING,
+        DYING,
     }
 
     private float _landingStartTime;
@@ -80,7 +79,6 @@ public class PlayerController : MonoBehaviour {
 
     // Use this for initialization
     void Start() {
-        _sr = GetComponentInChildren<SpriteRenderer>();
         _controller = GetComponent<Controller2D>();
         _recorder = GetComponent<Recorder>();
         _animator = GetComponent<Animator>();
@@ -124,6 +122,11 @@ public class PlayerController : MonoBehaviour {
     }
 
     private void _handleInput() {
+        if (_state == State.DYING) {
+            on_Idle();
+            return;
+        }
+        
         KeyCode keyCodeRight = KeyCode.D;
         KeyCode keyCodeLeft = KeyCode.A;
         KeyCode keyCodeJump = KeyCode.Space;
@@ -149,13 +152,19 @@ public class PlayerController : MonoBehaviour {
     private void _checkForCollisions() {
         int overlaps = _c2d.OverlapCollider(_cf2d, _playerCollisions);
         for (int i = 0; i < overlaps; i++) {
-            float diff = transform.position.y - _playerCollisions[i].gameObject.transform.position.y;
+            PlayerController otherPlayer = _playerCollisions[i].gameObject.GetComponent<PlayerController>();
+            if (!otherPlayer || otherPlayer._state == State.DYING) {
+                continue;
+            }
+            float diff = transform.position.y - otherPlayer.transform.position.y;
+            
             if (Math.Abs(diff) < 0.1) {
                 // nothing happens, walk past each other
             } else if (diff > 0) {
                 Debug.Log("We kill " + _playerCollisions[i].gameObject.name);
             } else {
                 Debug.Log("We die to " + _playerCollisions[i].gameObject.name);
+                on_Die();
             }
         }
     }
@@ -207,19 +216,15 @@ public class PlayerController : MonoBehaviour {
                 break;
             case State.IDLE:
                 _animator.Play("Idle");
-                _sr.color = Color.white;
                 break;
             case State.MOVING:
                 _animator.Play("Walk");
-                _sr.color = Color.white;
                 break;
             case State.RUNNING:
-                _sr.color = Color.red;
                 break;
 
             case State.JUMP:
                 _animator.Play("Jump");
-                _sr.color = Color.white;
 
                 if (_isFirstJump) {
                 } else {
@@ -228,13 +233,14 @@ public class PlayerController : MonoBehaviour {
                 break;
 
             case State.LANDING:
-                _sr.color = Color.green;
                 break;
             case State.AGAINST_WALL:
-                _sr.color = Color.cyan;
                 break;
             case State.CROUCHING:
-                _sr.color = Color.magenta;
+                break;
+            
+            case State.DYING:
+                _animator.Play("Dying");
                 break;
 
             case State.FALLING:
@@ -244,8 +250,6 @@ public class PlayerController : MonoBehaviour {
                 } else {
                     _animator.Play("Fall");
                 }
-
-                _sr.color = Color.white;
                 break;
         }
     }
@@ -268,6 +272,7 @@ public class PlayerController : MonoBehaviour {
             case State.AGAINST_WALL:
             case State.CROUCHING:
             case State.FALLING:
+            case State.DYING:
                 break;
         }
 
@@ -292,6 +297,7 @@ public class PlayerController : MonoBehaviour {
             case State.AGAINST_WALL:
             case State.CROUCHING:
             case State.FALLING:
+            case State.DYING:
                 break;
         }
     }
@@ -305,6 +311,7 @@ public class PlayerController : MonoBehaviour {
             case State.RUNNING:
             case State.AGAINST_WALL:
             case State.CROUCHING:
+            case State.DYING:
                 break;
 
             case State.LANDING:
@@ -353,6 +360,7 @@ public class PlayerController : MonoBehaviour {
                 break;
 
             case State.LANDING:
+            case State.DYING:
                 break;
 
             case State.JUMP:
@@ -382,7 +390,28 @@ public class PlayerController : MonoBehaviour {
                 _fallingStartTime = Time.time;
                 break;
 
+            case State.DYING:
             case State.FALLING:
+                break;
+        }
+    }
+
+    private void on_Die() {
+        switch (_state) {
+            default:
+                break;
+            case State.IDLE:
+            case State.MOVING:
+            case State.RUNNING:
+            case State.LANDING:
+            case State.AGAINST_WALL:
+            case State.CROUCHING:
+            case State.JUMP:
+            case State.FALLING:
+                _state = State.DYING;
+                break;
+            
+            case State.DYING:
                 break;
         }
     }
