@@ -19,6 +19,8 @@ public class PlayerController : MonoBehaviour {
 
     public int PlayerIndex = 0;
 
+    public GameManager GameManager;
+
     public enum State {
         IDLE,
         MOVING,
@@ -96,6 +98,11 @@ public class PlayerController : MonoBehaviour {
         _cf2d.SetLayerMask(LayerMask.GetMask("Player"));
     }
 
+    public void Spawn(Vector3 position) {
+        _state = State.IDLE;
+        transform.position = position;
+    }
+
     // Update is called once per frame
     void Update() {
         // handle jumping / landing before moving, since we would like to switch to moving immediately upon landing
@@ -111,9 +118,7 @@ public class PlayerController : MonoBehaviour {
         _checkForCollisions();
 
         Velocity.y += Gravity * Time.deltaTime;
-
         _recordOrReplayStep();
-
         _controller.Move(Velocity);
 
         _updateAnimation();
@@ -121,19 +126,19 @@ public class PlayerController : MonoBehaviour {
         _previousState = _state;
     }
 
+    // input handling
     private void _handleInput() {
         if (_state == State.DYING) {
-            on_Idle();
             return;
         }
-        
+
         KeyCode keyCodeRight = KeyCode.D;
         KeyCode keyCodeLeft = KeyCode.A;
-        KeyCode keyCodeJump = KeyCode.Space;
+        KeyCode keyCodeJump = KeyCode.W;
         if (PlayerIndex == 1) {
             keyCodeRight = KeyCode.RightArrow;
             keyCodeLeft = KeyCode.LeftArrow;
-            keyCodeJump = KeyCode.LeftShift;
+            keyCodeJump = KeyCode.UpArrow;
         }
 
         if (Input.GetKey(keyCodeRight)) {
@@ -150,25 +155,35 @@ public class PlayerController : MonoBehaviour {
     }
 
     private void _checkForCollisions() {
-        int overlaps = _c2d.OverlapCollider(_cf2d, _playerCollisions);
-        for (int i = 0; i < overlaps; i++) {
-            PlayerController otherPlayer = _playerCollisions[i].gameObject.GetComponent<PlayerController>();
-            if (!otherPlayer || otherPlayer._state == State.DYING) {
-                continue;
-            }
-            float diff = transform.position.y - otherPlayer.transform.position.y;
-            
-            if (Math.Abs(diff) < 0.1) {
-                // nothing happens, walk past each other
-            } else if (diff > 0) {
-                Debug.Log("We kill " + _playerCollisions[i].gameObject.name);
-            } else {
-                Debug.Log("We die to " + _playerCollisions[i].gameObject.name);
-                on_Die();
+        if (_state == State.FALLING) {
+            int overlaps = _c2d.OverlapCollider(_cf2d, _playerCollisions);
+            for (int i = 0; i < overlaps; i++) {
+                PlayerController otherPlayer = _playerCollisions[i].gameObject.GetComponent<PlayerController>();
+                if (!otherPlayer || otherPlayer._state == State.DYING) {
+                    continue;
+                }
+
+                float diff = transform.position.y - otherPlayer.transform.position.y;
+                Debug.Log("diff " + diff + " player " + PlayerIndex + " pos " + transform.position + " other " + otherPlayer.PlayerIndex +
+                          " pos " + otherPlayer.transform.position);
+
+                if (Math.Abs(diff) < 0.1) {
+                    // nothing happens, walk past each other
+                } else if (diff > 0) {
+                    GameManager.OnPlayerKilled(PlayerIndex, otherPlayer.PlayerIndex);
+                }
             }
         }
     }
 
+    private Vector3 _computeVelocity(float direction) {
+        Vector3 ret = new Vector3(0, 0, 0);
+        ret.x = direction * MoveSpeed * Time.deltaTime;
+        ret.y += Velocity.y;
+        return ret;
+    }
+
+    // Animation transitions
     private void _updateAnimation() {
         if (Velocity.x < 0) {
             transform.localScale = new Vector2(-_xScale, transform.localScale.y);
@@ -183,31 +198,6 @@ public class PlayerController : MonoBehaviour {
                 Debug.Log(_previousState + " -> " + _state);
             }
         }
-    }
-
-    private void _recordOrReplayStep() {
-        if (_recorder.IsRecording()) {
-            if ((_lastPosition - transform.position).magnitude > 0.001 ||
-                (_lastVelocity - Velocity).magnitude > 0.001) {
-                _lastPosition = transform.position;
-                _lastVelocity = Velocity;
-
-                _recorder.RecordFrame(transform.position, Velocity, _state, _previousState);
-            }
-        } else {
-            Recorder.Frame frame = _recorder.GetFrame(ReplayFrame);
-            transform.position = frame.Position;
-            Velocity = frame.Velocity;
-            _previousState = frame.PreviousPlayerState;
-            _state = frame.PlayerState;
-        }
-    }
-
-    private Vector3 _computeVelocity(float direction) {
-        Vector3 ret = new Vector3(0, 0, 0);
-        ret.x = direction * MoveSpeed * Time.deltaTime;
-        ret.y += Velocity.y;
-        return ret;
     }
 
     private void _setAnimation() {
@@ -238,7 +228,7 @@ public class PlayerController : MonoBehaviour {
                 break;
             case State.CROUCHING:
                 break;
-            
+
             case State.DYING:
                 _animator.Play("Dying");
                 break;
@@ -250,6 +240,47 @@ public class PlayerController : MonoBehaviour {
                 } else {
                     _animator.Play("Fall");
                 }
+
+                break;
+        }
+    }
+
+
+    private void _recordOrReplayStep() {
+        if (_recorder.IsRecording()) {
+            if ((_lastPosition - transform.position).magnitude > 0.001 ||
+                (_lastVelocity - Velocity).magnitude > 0.001) {
+                _lastPosition = transform.position;
+                _lastVelocity = Velocity;
+
+                _recorder.RecordFrame(transform.position, Velocity, _state, _previousState);
+            }
+        } else {
+            Recorder.Frame frame = _recorder.GetFrame(ReplayFrame);
+            transform.position = frame.Position;
+            Velocity = frame.Velocity;
+            _previousState = frame.PreviousPlayerState;
+            _state = frame.PlayerState;
+        }
+    }
+
+    public void Die() {
+        switch (_state) {
+            default:
+                break;
+            case State.IDLE:
+            case State.MOVING:
+            case State.RUNNING:
+            case State.JUMP:
+            case State.LANDING:
+            case State.AGAINST_WALL:
+            case State.CROUCHING:
+            case State.FALLING:
+                Velocity.x = Velocity.y = 0;
+                _state = State.DYING;
+                break;
+
+            case State.DYING:
                 break;
         }
     }
@@ -392,26 +423,6 @@ public class PlayerController : MonoBehaviour {
 
             case State.DYING:
             case State.FALLING:
-                break;
-        }
-    }
-
-    private void on_Die() {
-        switch (_state) {
-            default:
-                break;
-            case State.IDLE:
-            case State.MOVING:
-            case State.RUNNING:
-            case State.LANDING:
-            case State.AGAINST_WALL:
-            case State.CROUCHING:
-            case State.JUMP:
-            case State.FALLING:
-                _state = State.DYING;
-                break;
-            
-            case State.DYING:
                 break;
         }
     }
