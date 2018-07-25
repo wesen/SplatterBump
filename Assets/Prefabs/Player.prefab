@@ -68,7 +68,7 @@ Transform:
   m_PrefabInternal: {fileID: 100100000}
   m_GameObject: {fileID: 1290162931697476}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 4.338, y: -1.089, z: 0}
+  m_LocalPosition: {x: -2.09, y: -1.13, z: 0}
   m_LocalScale: {x: 0.19, y: 0.18000002, z: 1}
   m_Children:
   - {fileID: 4500058586091470}
@@ -141,8 +141,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f40d26bdb98534f3fa0e9b0b897419f5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Offset: 0
+  Offset: 18
   Texture: {fileID: 2800000, guid: 09394cbf6c2b08446935cc2b7cf7287f, type: 3}
+  AnimationLength: 18
 --- !u!114 &114314785971840282
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -182,6 +183,8 @@ MonoBehaviour:
   FallDurationForLanding: 1
   JumpZone: 0.2
   Verbose: 0
+  PlayerIndex: 1
+  GameManager: {fileID: 0}
   ReplayFrame: 0
 --- !u!212 &212768756712346020
 SpriteRenderer:
